@@ -1,0 +1,898 @@
+#! /usr/local/bin/bash
+
+shopt -s extglob globstar
+
+# Function: combs
+#
+function _combs
+{
+  #rm -f all_loto_combs.*
+
+#  echo Started at $(date)
+#  echo Generating all combinations...
+
+  
+  for n1 in $(seq 49); do
+    sub_combs $n1 &
+  done
+
+#  for n1 in $(seq 49); do
+#    for n2 in $(fdj seq 49 $n1); do
+#      for n3 in $(fdj seq 49 $n1 $n2); do
+#	for n4 in $(fdj seq 49 $n1 $n2 $n3); do
+#	  for n5 in $(fdj seq 49 $n1 $n2 $n3 $n4); do
+#	    printf "%2d\n" $n1 $n2 $n3 $n4 $n5 | sort -n | xargs
+#      	  done
+#      	done
+#      done
+#    done
+#  done > all_loto_combs.tmp
+#  echo Ended at $(date)
+#
+#  echo Sorting...
+#  sort -u all_loto_combs.tmp > all_loto_combs.log
+}
+
+# Function: sub_combs
+#
+function sub_combs
+{
+  local n1=$1
+
+  echo Starting sub_combs with $n1 at $(date)...
+
+  touch ${n1}_begin
+  for n2 in $(fdj seq 49 $n1); do
+    for n3 in $(fdj seq 49 $n1 $n2); do
+      for n4 in $(fdj seq 49 $n1 $n2 $n3); do
+        for n5 in $(fdj seq 49 $n1 $n2 $n3 $n4); do
+          printf "%2d\n" $n1 $n2 $n3 $n4 $n5 | sort -n | xargs
+    	  done
+    	done
+    done
+  done > ${n1}_sub_combs.temp
+
+  echo Done sub_combs with $n1
+  touch ${n1}_end
+}
+
+# Function: seq
+#
+function _seq
+{
+  local max=$1
+  shift
+
+  seq $max | if (($#))
+  then
+    grep -v "$(echo "$@" | sed 's/\S\+/\\<&\\>/g; s/ /\\|/g')"
+  else
+    cat
+  fi
+}
+
+
+function _last_sort
+{
+  function last_sort_core
+  {
+    function sort_temp
+    {
+      sort -u $1 > $1.sort
+    }
+  
+  
+   touch last_sort_begin
+  
+   for f in $(ls *_sub_combs.temp); do
+     echo Processing $f..
+     sort_temp $f
+   done
+  
+   touch last_sort_end
+  }
+
+  last_sort_core &
+}
+
+# Function: lmerge
+#
+function _lmerge
+{
+  cd $FDJ_HOME/loto
+  
+  ls -1 csv/loto_20* | tail -n +2 | xargs -IFILE bash -c "tail -n +2 FILE | tac" | cut -d";" -f3,11 | sed 's/-\|+\|;/\t/g' | nl -nln > loto.csv
+}
+
+
+# Function: emerge
+#
+function _emerge
+{
+  cd $FDJ_HOME
+  
+  cat  \
+  <(tail -n +2 euromillion/csv/euromillions_200402.csv  | tac | cut -d';' -f3,12,13 | sed -r 's/;//g; s#^(....)(..)(..)#\3/\2/\1#' | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_200402.csv) \
+  <(tail -n +2 euromillion/csv/euromillions_201105.csv  | tac | cut -d';' -f3,12,13 | sed -r 's/;//g'                              | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_201105.csv) \
+  <(tail -n +2 euromillion/csv/euromillions_201402.csv  | tac | cut -d';' -f3,12,13 | sed -r 's/;//g; s#^(../../)(..)\>#\120\2#'   | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_201402.csv) \
+  <(tail -n +2 euromillion/csv/euromillions_201609.csv  |       cut -d';' -f3,13,14 | sed -r 's/;//g'                              | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_201609.csv) \
+  <(tail -n +2 euromillion/csv/euromillions_201902.csv  | tac | cut -d';' -f3,13,14 | sed -r 's/;//g'                              | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_201902.csv) \
+  <(tail -n +2 euromillion/csv/euromillions_202002.csv  | tac | cut -d';' -f3,13,14 | sed -r 's/;//g'                              | cut -d'-'  -f1-6,8-9 | sed 's/-/\t/g' | tee euromillion_202002.csv) \
+  | nl -nln > euromillion/euromillion.csv
+
+  rm euromillion_20*.csv
+}
+
+
+# Function: lupdate
+#
+# https://media.fdj.fr/static/csv/loto/loto_201911.zip
+#
+function _lupdate
+{
+  cd $FDJ_HOME
+
+  wget  -q  https://media.fdj.fr/static/csv/loto/loto_201911.zip
+  unzip -q  loto_201911.zip
+
+  mv  loto_201911.zip loto/zip
+  mv  loto_201911.csv loto/csv
+
+  fdj lmerge
+}
+
+# Function: eupdate
+#
+# https://media.fdj.fr/static/csv/euromillions/euromillions_200402.zip
+# https://media.fdj.fr/static/csv/euromillions/euromillions_201105.zip
+# https://media.fdj.fr/static/csv/euromillions/euromillions_201402.zip
+# https://media.fdj.fr/static/csv/euromillions/euromillions_201609.zip
+# https://media.fdj.fr/static/csv/euromillions/euromillions_201902.zip
+# https://media.fdj.fr/static/csv/euromillions/euromillions_202002.zip <<<
+#
+function _eupdate
+{
+  cd $FDJ_HOME
+
+  wget  -q https://media.fdj.fr/static/csv/euromillions/euromillions_202002.zip
+  unzip -q euromillions_202002.zip
+
+  mv  euromillions_202002.zip euromillion/zip
+  mv  euromillions_202002.csv euromillion/csv
+
+  fdj emerge
+}
+
+
+# Function: update 
+#
+function _update
+{
+  fdj lupdate
+  fdj eupdate
+}
+
+
+# Function: follow
+#
+#function _follow
+#{
+#  function usage
+#  {
+#    cat <<USAGE | sed -r '
+#                    s/follow/\\e[1m&\\e[0m/
+#                    s/.*/echo -e "&"/e
+#                  '
+#usage: follow number colname game
+#       follow number subname subargs...
+#       follow number 
+#USAGE
+#
+#    exit ${1:-0}
+#  }
+#
+#  if ((!$#)); then
+#    usage
+#  fi
+#  
+#  if [[ $1 =~ ^[[:digit:]] ]]; then
+#    num=$1
+#    shift
+#  else
+#    echo -e "\e[1;31m-E-\e[0m The first argument shall be an integer\n"
+#    usage 1
+#  fi
+#
+#  if [[ $1 =~ ^([bB][1-5]|[eE][1-2]) ]]; then
+#    colname=$1
+#    game=$2
+#    #echo "colname<$colname> num<$num> game<$game>"
+#  fi
+#
+#  #echo "colname<$colname> num<$num> game<$game>"
+#
+#  if [[ $colname ]]; then
+#    get_col_csv $colname $game col csv
+#
+#    # echo game=$game col=$col num=$num '=>' csv=$csv
+#
+#    csv_col=$(cut -f$col $csv)
+#
+#    draw_count=$(echo "$csv_col" | wc -l)
+#    count=$(echo "$csv_col" | grep -c "^$num\>")
+#
+#    echo -e "Number \e[1m$num\e[0m occurs \e[1m$count\e[0m time$(if ((count > 1)); then echo s; fi) over \e[1m$draw_count\e[0m draws in column \e[1m$colname\e[0m (#\e[1m$col\e[0m) of \e[1m$(basename $csv)\e[0m"
+#
+#    echo "$csv_col" 
+#  
+#  elif (($# == 0)); then
+#
+#    cat /dev/stdin | xargs | sed 's/ /\n/g'
+#
+#  else
+#    
+#    fdj "$@" | xargs | sed 's/ /\n/g'
+#    
+#  fi  | sed -rn "/^$num\>/ { :more; n; p;  /^$num\>/b more; d}" | sort | uniq -c | sort -k1,1rn -k2,2n
+#}
+
+# Function: follow
+#
+function _follow
+{
+  local dir=$1 game=$2
+
+  if [[ -z $game || -z $dir ]]; then
+    echo "-E- Game or Direction not provided"
+    exit
+  fi
+
+  mkdir -p $HOME/FDJ/follow/$game/$dir && cd $HOME/FDJ/follow/$game/$dir
+
+  if [[ $dir == y ]]; then
+    for boule in $(seq 1 5); do
+      mkdir -p b$boule
+      cd b$boule
+      rm -f *
+  
+      fdj boule $boule $game | sed -rn '
+        :cont
+        N
+        s/\n/ /
+        p
+        s/\S+ //
+        b cont
+      '                          |  \
+      sort -k1,1n -k2,2n         |  \
+      uniq -c                    |  \
+      sort -k2,2n -k1,1rn -k3,3n |  \
+      sed -r 's/^\s+(\S+)\s+(\S+)\s+(\S+)/\2\t\3\t\1/' | \
+      sed -rn 's/^(\S+)\s(\S+)\s(\S+)/echo "\2\t\3" >> \1/e'
+  
+      for from in $(ls); do
+        edges=$(($(cut -f2 $from | xargs | sed 's/ / + /g'))) 
+        file=${game}__${dir}__b${boule}__$from
+  
+        echo "digraph {" >> $file.dot
+        echo "label = \"$edges\"" >> $file.dot
+        echo "labelloc = \"t\"" >> $file.dot
+    
+        cat $from | while read to cnt; do
+        #echo  $cnt / $edges: "  $from -> $to [label=\""$(bc <<<"scale=1; ($cnt * 100)/$edges" | sed 's/\.0//')"%\"]" 
+        echo "  $from -> $to [label=\""$(bc <<<"scale=1; ($cnt * 100)/$edges " | sed 's/\.0//')"%:$cnt\"]" >> $file.dot
+        done
+        echo "}" >> $file.dot
+    
+        dot -Tpng $file.dot -o$file.png
+      done
+
+      ls *.png | cut -d. -f1 | cut -d_ -f7 | sort -nu | sed 's/.*/'$game''__$dir''__b$boule''__'&.png/' | xargs open
+  
+      cd ..
+    done
+  
+  else
+    rm -f *
+    fdj boules $game | while read line; do
+      echo "$line" | sed 's/\s/\n/g' | sed -rn '
+        :cont
+        N
+        s/\n/ /
+        p
+        s/\S+ //
+        b cont
+      '
+    done                       |  \
+    sort -k1,1n -k2,2n         |  \
+    uniq -c                    |  \
+    sort -k2,2n -k1,1rn -k3,3n |  \
+    sed -r 's/^\s+(\S+)\s+(\S+)\s+(\S+)/\2\t\3\t\1/' | \
+    sed -rn 's/^(\S+)\s(\S+)\s(\S+)/echo "\2\t\3" >> \1/e'
+  
+    for from in $(ls); do
+      edges=$(($(cut -f2 $from | xargs | sed 's/ / + /g'))) 
+      file=${game}__${dir}__$from
+  
+      echo "digraph {" >> $file.dot
+      echo "label = \"$edges\"" >> $file.dot
+      echo "labelloc = \"t\"" >> $file.dot
+    
+      cat $from | while read to cnt; do
+      #echo  $cnt / $edges: "  $from -> $to [label=\""$(bc <<<"scale=1; ($cnt * 100)/$edges" | sed 's/\.0//')"%\"]" 
+      echo "  $from -> $to [label=\""$(bc <<<"scale=1; ($cnt * 100)/$edges " | sed 's/\.0//')"%:$cnt\"]" >> $file.dot
+      done
+      echo "}" >> $file.dot
+    
+      dot -Tpng $file.dot -o$file.png
+    done
+
+    ls *.png | cut -d. -f1 | cut -d_ -f5 | sort -nu | sed 's/.*/'$game''__$dir''__'&.png/' | xargs open
+  fi
+}
+
+#
+#
+function _xdiff
+{
+  fdj "$@" | sed -r 's/\S+/&\t&/g; s/^\S+\s(.+)\s\S+$/\1/; s/(\S+)\s(\S+)/$((\2 - \1))/g; s/.*/echo &/e; s/\s/\t/g' 
+}
+
+
+# Function: arith
+#
+function _arith
+{
+  if (($# == 0)); then
+
+    cat /dev/stdin
+
+  elif [[ $1 =~ ^[[:digit:]]+ ]]; then
+
+    fdj $(seq -f "arith  %.0f" $(($1 - 1)) | cut -d' ' -f1 | xargs) "${@:2}"
+
+  else
+
+    fdj "$@"
+    
+  fi    | xargs | sed 's/ /\n/g' | sed -rn '
+    
+    h
+    :next
+    n
+    G
+    s/\n/ - /
+    h
+    s/.*/echo $((&))/ep
+    g
+    s/\s.+//
+    h
+    b next
+  '
+}
+
+
+# Function: get_col_csv
+#
+function get_col_csv
+{
+  local colname=$1
+  local game=$2
+  
+  local col_varname=$3
+  local csv_varname=$4
+
+  case $game in
+    loto)
+      case $colname in
+        [bB][1-5])
+          eval $col_varname=$((2 + $(sed 's/^.//' <<<$colname)))
+          ;;
+
+        [eE]1)
+          eval $col_varname=$((7 + $(sed 's/^.//' <<<$colname)))
+          ;;
+
+        *)  echo -e "\e[1;31m-E-\e[0m unsupported column \e[31m$colname\e[0m for \e[1m$game\e[0m"
+            exit 1
+            ;;
+      esac
+
+      eval $csv_varname=$FDJ_HOME/loto/loto.csv
+      ;;
+
+    euro)
+      case $colname in
+        [bB][1-5])  
+          eval $col_varname=$((2 + $(sed 's/^.//' <<<$colname)))
+          ;;
+
+        [eE][1-2])  
+          eval $col_varname=$((7 + $(sed 's/^.//' <<<$colname)))
+          ;;
+
+        *)  echo -e "\e[1;31m-E-\e[0m unsupported column \e[31m$colname\e[0m for \e[1m$game\e[0m"
+            exit 2
+            ;;
+      esac
+
+      eval $csv_varname=$FDJ_HOME/euromillion/euromillion.csv
+      ;;
+
+    *)  echo -e "\e[1;31m-E-\e[0m unsupported game \e[31m$game\e[0m"
+        exit 3
+        ;;
+  esac
+
+}
+
+
+# Function: column
+#
+function _column
+{
+  colname=$1
+  game=$2
+
+  get_col_csv $colname $game col csv
+
+  cut -f$col $csv
+}
+
+# Function: col
+#
+# Alias to column
+#
+function _col
+{
+  fdj column "$@"
+}
+
+# Function: boule
+#
+function _boule
+{
+  k=$1
+  game=$2
+
+  fdj col b$k $game
+}
+
+# Function: etoile
+#
+function _etoile
+{
+  k=$1
+  game=$2
+
+  fdj col e$k $game
+}
+
+# Function: frequence
+#
+function _frequence
+{
+  #colname=$1
+  #game=$2
+
+  #echo -e "For \e[1m$(fdj draw_count $game)\e[0m draws of \e[1m$game\e[0m, we have\n"
+
+  # fdj col $colname $game | sort | uniq -c | sort -k1,1rn -k2,2n
+  fdj "$@" | sort | uniq -c | sort -k1,1rn -k2,2n
+}
+
+# Function: draw_count  euro|loto
+#
+function _draw_count
+{
+  game=$1
+
+  if [[ $1 =~ euro|loto ]]; then
+    wc -l $(fdj csv $game) | cut -d' ' -f1
+  else
+    echo -e "\e[1;31m-E-\e[0m Unknown game '\e[31m$game\e[0m'"
+    exit 1
+  fi
+}
+
+# Function: dist
+#
+# receives a two columns
+#   1) frequency
+#   2) value
+#
+function _dist
+{
+  freq_val=$(fdj "$@" | sed -r 's/^\s+//')
+
+  # Define the values and their weights
+  values=($( echo "$freq_val" | cut -d' ' -f2))
+  weights=($(echo "$freq_val" | cut -d' ' -f1))
+  
+  #echo "values=($values)"
+  #echo "weigths=($weights)"
+  
+  # Calculate the total weight
+  total_weight=$(echo ${weights[*]} | sed -r 's/\s/ + /g; s/.*/echo $((&))/e')
+  
+  #echo total_weight=$total_weight
+  #exit
+  # Generate a random number between 0 and the total weight
+  random_number=$((RANDOM % total_weight))
+  
+  # Iterate through the values and select one based on the weights
+  cumulative_weight=0
+  for i in "${!values[@]}"; do
+      cumulative_weight=$((cumulative_weight + weights[i]))
+
+      if ((cumulative_weight > random_number)); then
+          echo "${values[i]}"
+          break
+      fi
+  done
+
+}
+
+function echo
+{
+  /usr/local/opt/coreutils/libexec/gnubin/echo "$@"
+}
+export -f echo
+
+# Function: grille
+#
+function _grille
+{
+  function usage
+  {
+    cat <<USAGE | sed -r '
+      s/--?\w+/\\e[1m&\\e[0m/g
+      s/.*/echo -e "&"/e
+    '
+usage: fdj grille [--help|-h] [--follow|-f] <game>
+
+  -h, --help, print this help and exit
+  -f, --follow, enable alternate algorithm
+  <game>, the name of the game to play (loto, euro)
+USAGE
+
+    exit ${1:-0}
+  }
+
+  if (( $# == 0 )); then
+    usage
+  fi
+
+  # Options:
+  opts=$(getopt -a -o hf -l help,follow -- "$@")
+  eval set -- $opts
+
+  # Check for missing arguments
+  if [[ $? != 0 ]]; then
+    usage 1
+  fi
+
+  # Extract options
+  while (($#)); do
+    case $1 in
+      -h|--help)
+        usage
+        ;;
+
+      -f|--follow)
+        follow=1
+        shift
+        ;;
+
+      --)
+        shift
+        ;;
+
+      -*)
+        echo -e "\e[1;31m-E-\e[0m Unknown option '\e[31m$1\e[0m'\n"
+        usage 1
+        ;;
+        
+      *)
+        game=$1
+        shift
+        ;;
+    esac
+  done
+  
+  
+  # Check game is loto or euro
+  if ! [[ $game =~ euro|loto ]]; then
+    echo -e "\e[1;31m-E-\e[0m Unknown game '\e[31m$game\e[0m'\n"
+    usage 1
+  fi
+
+  b1=$(fdj dist frequence boule 1 $game)
+
+  if ((follow)); then
+    :
+  else
+    b2=$(fdj dist frequence boule 2 $game)
+    b3=$(fdj dist frequence boule 3 $game)
+    b4=$(fdj dist frequence boule 4 $game)
+    b5=$(fdj dist frequence boule 5 $game)
+    
+    e1=$(fdj dist frequence etoile 1 $game)
+    if [[ $game == euro ]]; then
+      e2=$(fdj dist frequence etoile 2 $game)
+    fi
+  fi
+  
+  check=$(fdj check $game $b1 $b2 $b3 $b4 $b5 $e1${e2+- $e2})
+
+  if [[ $check ]]; then
+    echo $check
+  else
+    boules=$(echo -n $b1 $b2 $b3 $b4 $b5 | sed 's/ /\n/g' | sort -n | xargs | sed 's/ /\t/g')
+    echo -e "$boules\t-\t$e1${e2+-\t$e2}"
+  fi
+}
+
+
+# Function: csv euro|loto
+#
+function _csv
+{
+  case $1 in
+    loto) echo $FDJ_HOME/loto/loto.csv;;
+    euro) echo $FDJ_HOME/euromillion/euromillion.csv;;
+    +([^[:space:]]))
+      echo -e "\e[1;31m-E-\e[0m Unknown game '\e[31m$1\e[0m'" > /dev/stderr 
+      exit 1
+      ;;
+
+    *)  echo -e "\e[1;31m-E-\e[0m Missing game \e[1meuro\e[0m|\e[1mloto\e[0m" > /dev/stderr 
+        exit 2
+        ;;
+  esac 
+}
+
+# Function: tirages [boules [etoiles]] euro|loto
+#
+function _tirages
+{
+  function usage
+  {
+    cat <<USAGE
+usage: tirages [boules [etoiles]] euro|loto
+USAGE
+
+    if ((${1:-0})); then echo; fi
+    exit ${1:-0}
+  }
+
+  case $1 in
+    euro|loto)
+      cat $(fdj csv $1);;
+
+    boules)
+      case $2 in
+        etoiles)
+          case $3 in
+            euro|loto) paste <(fdj boules $3) <(fdj etoiles $3);;
+            +([^[:space:]]))
+                echo -e "\e[1;31m-E-\e[0m Unknown game '\e[31m$3\e[0m'\n" 
+                usage 1
+                ;;
+
+            *)  usage;;
+          esac
+          ;;
+
+        euro|loto) fdj boules $2;;
+        *)  usage;;
+      esac
+      ;;
+
+    *) usage;;
+  esac
+}
+
+# Function: draws euro|loto
+#
+function _draws
+{
+  fdj tirages "$@"
+}
+
+
+# Function: boules [etoiles] euro|loto
+#
+function _boules
+{
+  
+  case $1 in
+    euro|loto)  cat $(fdj csv $1) | cut -f3-7;;
+
+    etoiles)
+      case $2 in
+        euro|loto)  paste <(fdj boules $2) <(fdj etoiles $2);;
+      esac
+  esac
+}
+
+# Function: etoiles euro|loto
+#
+function _etoiles
+{
+  cat $(fdj csv $1) | cut -f8-9
+}
+
+# Function: check
+#
+function _check
+{
+  game=$1
+  shift
+
+  choice=$(sed 's/ /\t/g' <<<"$*")
+  
+  fdj draws $game | grep -E --color "$choice"
+}
+
+# Function: rand
+#
+function _rand
+{
+  :
+}
+
+# Function: product
+#
+function _product
+{
+  fdj reduce x "$@"
+}
+
+# Function: produit
+#
+# Alias to product
+#
+function _produit
+{
+  fdj product "$@"
+}
+
+# Function: reduce
+#
+function _reduce
+{
+  op=$1
+  case $op in
+    x) op=*
+       ;;
+    
+    +) op=+
+       ;;
+
+    -) op=-
+       ;;
+
+    and) op=&
+	 ;;
+    
+    or) op='|'
+	;;
+
+    xor) op=^
+	 ;;
+
+    *) echo -e "\e[1;31m-E-\e[0m Unsupport operation '\e[1m$1\e[0m'"
+       exit 1
+       ;;
+  esac
+
+
+  fdj ${@:2} | sed -r "s/\s+/ $op /g; s/.*/echo \$((&))/e"
+}
+
+function _add
+{
+  fdj reduce + "$@"
+}
+
+function _div
+{
+  fdj "${@:2}" | sed -r 's#.*#bc <<<"scale=2; &/'${1:-1}'"#e'
+}
+
+# Function: cut
+#
+function _cut
+{
+  fdj ${@:2} | cut -f$1
+}
+
+# Function: calc
+#
+function _calc
+{
+  fdj ${@:2} | while read; do
+    re=$(echo "$REPLY" | sed -r 's/\S+/(\\S+)/g')
+
+    echo "$REPLY" | sed -rn "s/$re/echo \$(($1))/ep"
+  done
+}
+
+#
+# Function: s2m [len[:overlap]] samples
+#
+# Samples to Matrix
+#
+function _s2m
+{
+  function usage
+  {
+    cat <<USAGE | sed -r '
+                    s/s2m/\\e[1m&\\e[0m/
+                    s/len|overlap|samples/\\e[4m&\\e[0m/g  
+                    s/.*/echo -e "&"/e
+                  '
+usage: s2m [len[:overlap]] samples
+
+USAGE
+
+    exit ${1:-0}
+  }
+
+
+  if (($#)); then
+    if [[ $1 =~ ^([[:digit:]]|:) && $1 =~ ^([[:digit:]]+)?(:([[:digit:]]+))? ]]; then
+      len=${BASH_REMATCH[1]}
+      overlap=${BASH_REMATCH[3]}
+
+      shift
+    fi
+
+    file=$1
+  fi
+
+  : ${len:=1024} ${overlap:=128} ${file:=/dev/stdin}
+
+  if [[ -f $file ]]; then
+    if [[ ! -s $file ]]; then
+      echo -e "\e[1;31m-E-\e[0m File '\e[1;31m$file\e[0m' is empty\n"
+      exit 1
+    fi
+  elif [[ ! -L $file ]]; then
+    printf "\e[1;31m-E-\e[0m Argument '\e[1m$file\e[0m' is neither a file nor a symbolic link\n\n"
+    usage 1
+  fi
+
+  echo len=$len overlap=$overlap samples=$file
+}
+
+# Function: shell
+#
+function _shell
+{
+  eval "$@"
+}
+
+# Function: open
+#
+function _open
+{
+  gvim $0
+}
+
+####################### DON'T TOUCH WHAT'S BELOW #######################
+#FDJ_HOME=$(readlink -e "$0" | xargs dirname | xargs dirname)
+
+if ((!$#)); then
+  echo -e "\e[1;31m-E-\e[0m Missing subcommand!"
+  exit 1
+fi
+
+sub=$1
+shift
+
+if [[ $(type -t _$sub) == function ]]; then
+  _$sub "$@"
+else
+  echo -e "\e[1;31m-E-\e[0m Unknown subcommand '\e[1m$sub\e[0m'"
+fi
