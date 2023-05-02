@@ -332,10 +332,27 @@ function _follow
 
 #
 #
-function _xdiff
+function _idiff
 {
-  fdj "$@" | sed -r 's/\S+/&\t&/g; s/^\S+\s(.+)\s\S+$/\1/; s/(\S+)\s(\S+)/$((\2 - \1))/g; s/.*/echo &/e; s/\s/\t/g' 
+  local N
+  if (($# == 0)); then
+    N=1
+  elif [[ $1 =~  [[:digit:]]+ ]]; then
+    N=$1
+    shift
+  fi
+
+  if [[ -p /dev/stdin ]]; then
+    paste -s
+  else
+    fdj "$@" 
+  fi | sed -r 's/\S+/&\t&/g; s/^\S+\s(.+)\s\S+/\1/; s/(\S+)\s+(\S+)/$((\2 - \1))/g; s/.*/echo &/e; s/\s/\t/g' | if ((N > 1)); then
+    fdj idiff $((N-1))
+  else
+    cat 
+  fi
 }
+
 
 
 # Function: arith
@@ -467,6 +484,13 @@ function _etoile
   fdj col e$k $game
 }
 
+# Function: paste
+#
+function _paste
+{
+  fdj "$@" | paste -s | sed 's/\s/\n/g'
+}
+
 # Function: frequence
 #
 function _frequence
@@ -477,7 +501,11 @@ function _frequence
   #echo -e "For \e[1m$(fdj draw_count $game)\e[0m draws of \e[1m$game\e[0m, we have\n"
 
   # fdj col $colname $game | sort | uniq -c | sort -k1,1rn -k2,2n
-  fdj "$@" | sort | uniq -c | sort -k1,1rn -k2,2n
+  if [[ -p /dev/stdin ]]; then
+    cat /dev/stdin | sed -r 's/\s/\n/g'
+  else
+    fdj "$@" 
+  fi | sort | uniq -c | sort -k1,1rn -k2,2n
 }
 
 # Function: draw_count  euro|loto
@@ -502,7 +530,12 @@ function _draw_count
 #
 function _dist
 {
-  freq_val=$(fdj "$@" | sed -r 's/^\s+//')
+  freq_val=$(if [[ -p /dev/stdin ]]; then
+                cat /dev/stdin
+             else
+                fdj "$@" 
+             fi | sed -r 's/^\s+//'
+            )
 
   # Define the values and their weights
   values=($( echo "$freq_val" | cut -d' ' -f2))
@@ -514,7 +547,13 @@ function _dist
   # Calculate the total weight
   total_weight=$(echo ${weights[*]} | sed -r 's/\s/ + /g; s/.*/echo $((&))/e')
   
-  #echo total_weight=$total_weight
+  if ((total_weight == 0)); then
+    echo -e "\e[1;31m-E-\e[0m Total weight is null"
+    echo "weights = ( ${weights[*]} )"
+    exit 1
+  fi
+
+  # echo total_weight=$total_weight
   #exit
   # Generate a random number between 0 and the total weight
   random_number=$((RANDOM % total_weight))
@@ -608,27 +647,46 @@ USAGE
 
   b1=$(fdj dist frequence boule 1 $game)
 
+  #echo b1=$b1
   if ((follow)); then
-    :
+    b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #echo b2=$b2
+    b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #echo b3=$b3
+    b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #echo b4=$b4
+    b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #echo b5=$b5
   else
     b2=$(fdj dist frequence boule 2 $game)
+    #echo b2=$b2
     b3=$(fdj dist frequence boule 3 $game)
+    #echo b3=$b3
     b4=$(fdj dist frequence boule 4 $game)
+    #echo b4=$b4
     b5=$(fdj dist frequence boule 5 $game)
+    #echo b5=$b5
+  fi
     
-    e1=$(fdj dist frequence etoile 1 $game)
-    if [[ $game == euro ]]; then
+  e1=$(fdj dist frequence etoile 1 $game)
+  #echo e1=$e1
+  if [[ $game == euro ]]; then
+    if ((follow)); then
+      e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
+    else
       e2=$(fdj dist frequence etoile 2 $game)
     fi
+    
+    #echo e2=$e2
   fi
   
-  check=$(fdj check $game $b1 $b2 $b3 $b4 $b5 $e1${e2+- $e2})
+  check=$(fdj check $game $b1 $b2 $b3 $b4 $b5 $e1${e2+ $e2})
 
   if [[ $check ]]; then
     echo $check
   else
     boules=$(echo -n $b1 $b2 $b3 $b4 $b5 | sed 's/ /\n/g' | sort -n | xargs | sed 's/ /\t/g')
-    echo -e "$boules\t-\t$e1${e2+-\t$e2}"
+    echo -e "$boules\t-\t$e1${e2+\t$e2}"
   fi
 }
 
