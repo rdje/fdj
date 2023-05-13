@@ -334,6 +334,14 @@ function _follow
 #
 function _idiff
 {
+  #
+  # idiff <N>
+  #
+  # <N> is optional
+  #
+  # fdj idiff
+  # fdj idiff <N>
+  #
   local N
   if (($# == 0)); then
     N=1
@@ -349,7 +357,7 @@ function _idiff
   fi | sed -r 's/\S+/&\t&/g; s/^\S+\s(.+)\s\S+/\1/; s/(\S+)\s+(\S+)/$((\2 - \1))/g; s/.*/echo &/e; s/\s/\t/g' | if ((N > 1)); then
     fdj idiff $((N-1))
   else
-    cat 
+    cat  | sed -r 's/\s+/\n/g'
   fi
 }
 
@@ -638,6 +646,7 @@ USAGE
     esac
   done
   
+  fdj update
   
   # Check game is loto or euro
   if ! [[ $game =~ euro|loto ]]; then
@@ -647,37 +656,62 @@ USAGE
 
   b1=$(fdj dist frequence boule 1 $game)
 
-  #echo b1=$b1
   if ((follow)); then
     b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    #echo b2=$b2
+    while ((b1 >= b2)); do
+      b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    done
+
     b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    #echo b3=$b3
+    while ((b2 >= b3)); do
+      b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    done
+
     b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    #echo b4=$b4
+    while ((b3 >= b4)); do
+      b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    done
+
     b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    #echo b5=$b5
+    while ((b4 >= b5)); do
+      b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    done
   else
     b2=$(fdj dist frequence boule 2 $game)
-    #echo b2=$b2
+    while ((b1 >= b2)); do
+      b2=$(fdj dist frequence boule 2 $game)
+    done
+
     b3=$(fdj dist frequence boule 3 $game)
-    #echo b3=$b3
+    while ((b2 >= b3)); do
+      b3=$(fdj dist frequence boule 3 $game)
+    done
+
     b4=$(fdj dist frequence boule 4 $game)
-    #echo b4=$b4
+    while ((b3 >= b4)); do
+      b4=$(fdj dist frequence boule 4 $game)
+    done
+
     b5=$(fdj dist frequence boule 5 $game)
-    #echo b5=$b5
+    while ((b4 >= b5)); do
+      b5=$(fdj dist frequence boule 5 $game)
+    done
   fi
     
+
   e1=$(fdj dist frequence etoile 1 $game)
-  #echo e1=$e1
   if [[ $game == euro ]]; then
     if ((follow)); then
       e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
+      while ((e1 >= e2)); do
+	e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
+      done
     else
       e2=$(fdj dist frequence etoile 2 $game)
+      while ((e1 >= e2)); do
+	e2=$(fdj dist frequence etoile 2 $game)
+      done
     fi
-    
-    #echo e2=$e2
   fi
   
   check=$(fdj check $game $b1 $b2 $b3 $b4 $b5 $e1${e2+ $e2})
