@@ -330,17 +330,20 @@ function _follow
   fi
 }
 
+# Function: diff
 #
-#
-function _idiff
+function _diff
 {
   #
-  # idiff <N>
+  # Accepts numbers, 1 per line, and returns their difference
+  # Those line are fed from stdin
+  # The difference is printed to stdout
+  # The absolute of the difference between line 2 and 1, line 3 and 2, etc are the output
   #
-  # <N> is optional
+  # <N> is optional and defaults to 1
   #
-  # fdj idiff
-  # fdj idiff <N>
+  # fdj diff
+  # fdj diff <N>
   #
   local N
   if (($# == 0)); then
@@ -355,12 +358,21 @@ function _idiff
   else
     fdj "$@" 
   fi | sed -r 's/\S+/&\t&/g; s/^\S+\s(.+)\s\S+/\1/; s/(\S+)\s+(\S+)/$((\2 - \1))/g; s/.*/echo &/e; s/\s/\t/g' | if ((N > 1)); then
-    fdj idiff $((N-1))
+    fdj diff $((N-1))
   else
     cat  | sed -r 's/\s+/\n/g'
   fi
 }
 
+
+# Function: histogram
+#
+function _histogram
+{
+  sort -n /dev/stdin | uniq -c | gnuplot -e "set terminal png; set output 'freq.png'; set style data histogram; set style fill solid; set xlabel 'Integer'; set ylabel 'Frequency'; plot '/dev/stdin' using 1:xtic(2) title 'Frequency Distribution'"
+
+  open freq.png
+}
 
 
 # Function: arith
@@ -532,7 +544,7 @@ function _draw_count
 
 # Function: dist
 #
-# receives a two columns
+# receives two columns
 #   1) frequency
 #   2) value
 #
@@ -591,16 +603,15 @@ function _grille
 {
   function usage
   {
-    cat <<USAGE | sed -r '
-      s/--?\w+/\\e[1m&\\e[0m/g
-      s/.*/echo -e "&"/e
-    '
-usage: fdj grille [--help|-h] [--follow|-f] <game>
-
-  -h, --help, print this help and exit
-  -f, --follow, enable alternate algorithm
-  <game>, the name of the game to play (loto, euro)
-USAGE
+    echo "Usage: fdj grille [options] <game>"
+    echo
+    echo "Options:"
+    echo "-h, --help	Print this help and exit"
+    echo "-c, --count   Generate the number of draws"
+    echo
+    echo "Arguments:"
+    echo "<game>, the name of the game to play (loto, euro)"
+    echo
 
     exit ${1:-0}
   }
@@ -610,13 +621,13 @@ USAGE
   fi
 
   # Options:
-  opts=$(getopt -a -o hf -l help,follow -- "$@")
-  eval set -- $opts
-
-  # Check for missing arguments
-  if [[ $? != 0 ]]; then
+  opts=$(getopt -a -o h,c: -l help,count: -- "$@")
+  if (($?)); then
     usage 1
   fi
+
+  eval set -- $opts
+
 
   # Extract options
   while (($#)); do
@@ -625,10 +636,10 @@ USAGE
         usage
         ;;
 
-      -f|--follow)
-        follow=1
-        shift
-        ;;
+      -c|--count)
+	count=$2
+	shift 2
+	;;
 
       --)
         shift
@@ -646,82 +657,129 @@ USAGE
     esac
   done
   
-  fdj update
-  
+  if [[ -z $count ]]; then
+    count=1
+  fi
+
   # Check game is loto or euro
   if ! [[ $game =~ euro|loto ]]; then
     echo -e "\e[1;31m-E-\e[0m Unknown game '\e[31m$game\e[0m'\n"
     usage 1
   fi
 
-  b1=$(fdj dist frequence boule 1 $game)
-
-  if ((follow)); then
-    b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    while ((b1 >= b2)); do
-      b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    done
-
-    b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    while ((b2 >= b3)); do
-      b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    done
-
-    b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    while ((b3 >= b4)); do
-      b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    done
-
-    b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    while ((b4 >= b5)); do
-      b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
-    done
-  else
-    b2=$(fdj dist frequence boule 2 $game)
-    while ((b1 >= b2)); do
-      b2=$(fdj dist frequence boule 2 $game)
-    done
-
-    b3=$(fdj dist frequence boule 3 $game)
-    while ((b2 >= b3)); do
-      b3=$(fdj dist frequence boule 3 $game)
-    done
-
-    b4=$(fdj dist frequence boule 4 $game)
-    while ((b3 >= b4)); do
-      b4=$(fdj dist frequence boule 4 $game)
-    done
-
-    b5=$(fdj dist frequence boule 5 $game)
-    while ((b4 >= b5)); do
-      b5=$(fdj dist frequence boule 5 $game)
-    done
-  fi
-    
-
-  e1=$(fdj dist frequence etoile 1 $game)
-  if [[ $game == euro ]]; then
-    if ((follow)); then
-      e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
-      while ((e1 >= e2)); do
-	e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
-      done
-    else
-      e2=$(fdj dist frequence etoile 2 $game)
-      while ((e1 >= e2)); do
-	e2=$(fdj dist frequence etoile 2 $game)
-      done
-    fi
-  fi
+  fdj update
   
-  check=$(fdj check $game $b1 $b2 $b3 $b4 $b5 $e1${e2+ $e2})
-
-  if [[ $check ]]; then
-    echo $check
+  if [[ $game =~ euro ]]; then
+    fee=2.50
   else
-    boules=$(echo -n $b1 $b2 $b3 $b4 $b5 | sed 's/ /\n/g' | sort -n | xargs | sed 's/ /\t/g')
-    echo -e "$boules\t-\t$e1${e2+\t$e2}"
+    fee=2.20
   fi
+
+  echo "Draw fee: $(printf "%.2f" $(echo "$fee * $count" | bc -l))"
+  echo
+
+
+  for n in $(seq 1 $count); do
+    # b1=$(fdj dist frequence boule 1 $game)
+  
+    # if ((follow)); then
+    #   b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   while ((b1 >= b2)); do
+    #     b2=$(fdj boules $game | sed -rn 's/.*\<'$b1'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   done
+  
+    #   b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   while ((b2 >= b3)); do
+    #     b3=$(fdj boules $game | sed -rn 's/.*\<'$b2'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   done
+  
+    #   b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   while ((b3 >= b4)); do
+    #     b4=$(fdj boules $game | sed -rn 's/.*\<'$b3'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   done
+  
+    #   b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   while ((b4 >= b5)); do
+    #     b5=$(fdj boules $game | sed -rn 's/.*\<'$b4'\s(\S+).*/\1/p' | fdj frequence | fdj dist)
+    #   done
+    # else
+    #   b2=$(fdj dist frequence boule 2 $game)
+    #   while ((b1 >= b2)); do
+    #     b2=$(fdj dist frequence boule 2 $game)
+    #   done
+  
+    #   b3=$(fdj dist frequence boule 3 $game)
+    #   while ((b2 >= b3)); do
+    #     b3=$(fdj dist frequence boule 3 $game)
+    #   done
+  
+    #   b4=$(fdj dist frequence boule 4 $game)
+    #   while ((b3 >= b4)); do
+    #     b4=$(fdj dist frequence boule 4 $game)
+    #   done
+  
+    #   b5=$(fdj dist frequence boule 5 $game)
+    #   while ((b4 >= b5)); do
+    #     b5=$(fdj dist frequence boule 5 $game)
+    #   done
+    # fi
+      
+    # e1=$(fdj dist frequence etoile 1 $game)
+    # if [[ $game == euro ]]; then
+    #   if ((follow)); then
+    #     e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
+    #     while ((e1 >= e2)); do
+    #     e2=$(fdj etoiles $game | sed -rn 's/.*\<'$e1'\s(\S+).*/\1/gp' | fdj frequence | fdj dist)
+    #     done
+    #   else
+    #     e2=$(fdj dist frequence etoile 2 $game)
+    #     while ((e1 >= e2)); do
+    #     e2=$(fdj dist frequence etoile 2 $game)
+    #     done
+    #   fi
+    # fi
+
+    boules=($(fdj rand 5 boules $game))
+  
+    ecount=$(if [[ $game == euro ]]; then echo 2; else echo 1; fi)
+    etoiles=($(fdj rand $ecount etoiles $game))
+    
+    check=$(fdj check $game ${boules[@]} ${etoiles[@]})
+  
+    if [[ $check ]]; then
+      echo $check
+    else
+      echo -e "$(echo ${boules[@]} | sed 's/ /\t/g')\t-\t$(echo ${etoiles[@]} | sed 's/ /\t/g')"
+    fi
+  done
+}
+
+
+# Function: rand
+#
+function _rand
+{
+  local count
+  if [[ $1 =~ ^[0-9]+$ ]]; then
+    count=$1
+    shift
+  else
+    count=5
+  fi
+
+  # Get a list of numbers
+  numbers=($( if [[ -p /dev/stdin ]]; then
+		cat
+	      else
+		fdj $@
+	      fi | sort -un
+	  ))
+ 
+ # Shuffle the array using shuf command
+ shuffled=($(shuf -e "${numbers[@]}"))
+ 
+ # Print a random sample of 5 elements from the shuffled array using shuf command
+ shuf -n $count -e "${shuffled[@]}" | sort -n | xargs | sed 's/ /\t/g'
 }
 
 
@@ -826,12 +884,6 @@ function _check
   fdj draws $game | grep -E --color "$choice"
 }
 
-# Function: rand
-#
-function _rand
-{
-  :
-}
 
 # Function: product
 #
